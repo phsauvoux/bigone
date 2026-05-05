@@ -8,16 +8,24 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          clean: true
+
+      - name: Clean old build folder
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force build-win -ErrorAction SilentlyContinue
 
       - name: Configure
         shell: pwsh
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
       - name: Build
         shell: pwsh
@@ -27,10 +35,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          Copy-Item -Recurse "build\PhSynthOne_artefacts\Release\VST3\PhSynth One.vst3" artifact\
+          $vst3 = Get-ChildItem -Path build -Recurse -Directory -Filter "*.vst3" | Select-Object -First 1
+          if (-not $vst3) { throw "No VST3 found" }
+          Copy-Item $vst3.FullName artifact -Recurse -Force
 
-      - name: Upload VST3 artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: PhSynth-One-Windows-VST3
-          path: artifact/PhSynth One.vst3
+          path: artifact
